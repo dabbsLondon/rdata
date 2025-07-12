@@ -5,6 +5,12 @@ edition = "2021"
 
 [dependencies]
 polars = { version = "^0.34", features = ["lazy"] }
+axum = "0.6"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+tower-http = { version = "0.4", features = ["cors"] }
+serde_json = "1"
 
 [dev-dependencies]
 assert_cmd = "2.0"
