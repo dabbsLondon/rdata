@@ -4,15 +4,22 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-polars = { version = "^0.34", features = ["lazy"] }
+polars = { version = "^0.34", features = ["lazy", "ipc", "parquet"] }
 axum = "0.6"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
 tower-http = { version = "0.4", features = ["cors"] }
 serde_json = "1"
+regex = "1"
+once_cell = "1"
+base64 = "0.22"
+zstd = "0.13"
 
 [dev-dependencies]
 assert_cmd = "2.0"
+tempfile = "3"
+tower = "0.4"
+hyper = "0.14"
 
 
