@@ -1,0 +1,29 @@
+name: Rust CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Build
+        run: cargo build --workspace --all-targets
+      - name: Test
+        run: cargo test --workspace --all-targets
+      - name: Install tarpaulin
+        run: cargo install cargo-tarpaulin
+      - name: Coverage
+        run: |
+          cargo tarpaulin --workspace --timeout 120 --out Xml > coverage.log
+          grep "line coverage" coverage.log | tee coverage_summary.txt
+          cat coverage_summary.txt >> $GITHUB_STEP_SUMMARY
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-log
+          path: coverage.log
