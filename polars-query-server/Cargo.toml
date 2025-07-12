@@ -1,0 +1,12 @@
+[package]
+name = "polars-query-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+polars = { version = "^0.34", features = ["lazy"] }
+
+[dev-dependencies]
+assert_cmd = "2.0"
+
+
