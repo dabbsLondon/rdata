@@ -8,9 +8,16 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain: [stable, nightly]
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
-      - run: cargo test --verbose
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+      - run: cargo fmt -- --check
+      - run: cargo clippy --no-deps -- -D warnings
+      - run: cargo test
+      - run: docker build -t polars-query-server .
