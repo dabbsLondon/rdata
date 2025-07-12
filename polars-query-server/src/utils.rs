@@ -44,3 +44,29 @@ pub fn prepare_output(id: u64, df: &DataFrame) -> io::Result<PreparedOutput> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn small_dataframe_inline() {
+        let mut df = df!["val" => [1, 2, 3]].unwrap();
+        let out = prepare_output(1, &df).unwrap();
+        assert!(out.bytes.is_some());
+        assert!(out.path.is_none());
+    }
+
+    #[test]
+    fn large_dataframe_as_file() {
+        let data: Vec<i32> = (0..1_000_000).collect();
+        let df = df!["val" => &data].unwrap();
+        let out = prepare_output(2, &df).unwrap();
+        assert!(out.bytes.is_none());
+        assert!(out.path.is_some());
+        let path = out.path.unwrap();
+        assert!(fs::metadata(&path).is_ok());
+        fs::remove_file(path).unwrap();
+    }
+}
