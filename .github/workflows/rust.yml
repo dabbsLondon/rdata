@@ -26,7 +26,7 @@ jobs:
           jq -r '.files[] | "\(.path | join("/")) \(.covered) \(.coverable)"' tarpaulin-report.json > coverage_raw.txt
           echo "| File | Coverage |" >> $GITHUB_STEP_SUMMARY
           echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
-          awk '{ pct=($2/$3)*100; printf "| %s | %.2f%% |\n", $1, pct }' coverage_raw.txt >> $GITHUB_STEP_SUMMARY
+          awk '{ pct=($3==0)?0:($2/$3)*100; printf "| %s | %.2f%% |\n", $1, pct }' coverage_raw.txt >> $GITHUB_STEP_SUMMARY
       - name: Build Docker image
         run: |
           docker build -t polars-query-server:latest .
