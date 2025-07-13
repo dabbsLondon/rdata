@@ -82,4 +82,23 @@ mod tests {
         assert!(v.get("job_id").is_some());
         std::env::remove_var("METRICS_DIR");
     }
+
+    #[tokio::test]
+    #[serial]
+    async fn run_query_returns_base64_output() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_var("METRICS_DIR", tmp.path());
+        let mut df = df!["val" => [1]].unwrap();
+        let parquet = NamedTempFile::new().unwrap();
+        ParquetWriter::new(File::create(parquet.path()).unwrap())
+            .finish(&mut df)
+            .unwrap();
+        let query = format!("df = pl.read_parquet(\"{}\")", parquet.path().display());
+        let state = Arc::new(AppState { scheduler: Scheduler::new() });
+        let resp = run_query(State(state), query).await.into_response();
+        let bytes = hyper::body::to_bytes(resp.into_body()).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(v.get("output").unwrap().as_str().unwrap().len() > 0);
+        std::env::remove_var("METRICS_DIR");
+    }
 }

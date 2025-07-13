@@ -71,4 +71,18 @@ mod tests {
         assert_eq!(df2.height(), 2);
         std::env::remove_var("METRICS_DIR");
     }
+
+    #[test]
+    #[serial]
+    fn record_metrics_default_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let current = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&dir).unwrap();
+        std::env::remove_var("METRICS_DIR");
+
+        record_metrics("q", 1, 1, 1).unwrap();
+        assert!(std::path::Path::new("metrics/query_metrics.parquet").exists());
+
+        std::env::set_current_dir(current).unwrap();
+    }
 }

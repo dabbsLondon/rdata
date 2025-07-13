@@ -224,4 +224,26 @@ mod tests {
         assert!(tmpdir.path().join("query_metrics.parquet").exists());
         std::env::remove_var("METRICS_DIR");
     }
+
+    #[tokio::test]
+    #[serial]
+    async fn enqueue_returns_queued_when_busy() {
+        let sched = Scheduler::new();
+        sched.active.store(4, Ordering::SeqCst);
+        let (_id, status, _rx) = sched.enqueue("df = pl.DataFrame()".into()).await;
+        assert_eq!(status, "queued");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn spawn_job_handles_error() {
+        let (complete_tx, mut complete_rx) = mpsc::channel(1);
+        let active = Arc::new(AtomicUsize::new(0));
+        let (resp_tx, resp_rx) = oneshot::channel();
+        let job = Job { id: 1, query: "bad".into(), resp: resp_tx, cost: 5 };
+        spawn_job(job, complete_tx, active.clone());
+        complete_rx.recv().await.unwrap();
+        let res = resp_rx.await.unwrap();
+        assert!(res.bytes.is_none() && res.path.is_none());
+    }
 }
