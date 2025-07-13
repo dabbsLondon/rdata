@@ -1,0 +1,2 @@
+df = pl.read_parquet('polars-query-server/data/sample_0.parquet')
+df = df.select(['name', 'age'])

@@ -1,5 +1,6 @@
 mod api;
 mod executor;
+mod metrics;
 mod parser;
 mod scheduler;
 mod utils;

@@ -11,6 +11,14 @@ cargo run
 
 The server listens on `127.0.0.1:3000` and exposes a single `POST /run-query` endpoint.
 
+### Examples
+
+Several ready-made query plans are available under the `examples/` directory. These files can be sent directly to the running server:
+
+```bash
+curl -X POST http://127.0.0.1:3000/run-query -d @examples/basic_query.txt
+```
+
 ### Example Query
 
 Save the following to `query.txt`:
@@ -60,6 +68,12 @@ python3 run_load_test.py
 ```
 
 A CSV summary will be written to `load_test_summary.csv`.
+
+## Query Metrics
+
+Each executed query is recorded to `metrics/query_metrics.parquet` along with the
+duration, estimated cost and output size. This file can be inspected with
+Polars or any tool that understands Parquet for further analysis.
 
 ## Running the Tests
 

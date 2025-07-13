@@ -10,6 +10,8 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::info;
 
+use crate::metrics;
+
 use crate::executor;
 use crate::parser::{self, QueryPlan};
 
@@ -145,6 +147,16 @@ fn spawn_job(job: Job, complete: mpsc::Sender<()>, active: Arc<AtomicUsize>) {
                 cost: job.cost,
             }
         };
+
+        let output_size = if let Some(ref bytes) = job_result.bytes {
+            bytes.len() as u64
+        } else if let Some(ref path) = job_result.path {
+            std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
+        } else {
+            0
+        };
+
+        let _ = metrics::record_metrics(&job.query, duration.as_millis(), job.cost, output_size);
 
         let _ = job.resp.send(job_result);
         let _ = complete.send(()).await;
