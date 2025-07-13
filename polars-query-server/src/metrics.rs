@@ -50,8 +50,10 @@ pub fn record_metrics(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn record_and_append_metrics() {
         let tmp = tempfile::tempdir().unwrap();
         std::env::set_var("METRICS_DIR", tmp.path());

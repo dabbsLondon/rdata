@@ -21,5 +21,6 @@ assert_cmd = "2.0"
 tempfile = "3"
 tower = "0.4"
 hyper = "0.14"
+serial_test = "2"
 
 

@@ -170,8 +170,10 @@ mod tests {
     use polars::prelude::*;
     use std::fs::File;
     use tempfile::NamedTempFile;
+    use serial_test::serial;
 
     #[tokio::test]
+    #[serial]
     async fn enqueue_and_complete() {
         let sched = Scheduler::new();
         let mut df = df!["name" => ["a"], "age" => [10]].unwrap();
@@ -199,6 +201,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn spawn_job_records_metrics() {
         let tmpdir = tempfile::tempdir().unwrap();
         std::env::set_var("METRICS_DIR", tmpdir.path());
