@@ -21,9 +21,10 @@ pub fn record_metrics(
     ]
     .map_err(|e| std::io::Error::other(e.to_string()))?;
 
-    let path = Path::new("metrics/query_metrics.parquet");
+    let dir = std::env::var("METRICS_DIR").unwrap_or_else(|_| "metrics".into());
+    let path = Path::new(&dir).join("query_metrics.parquet");
     let mut df_to_write = if path.exists() {
-        let file = File::open(path)?;
+        let file = File::open(&path)?;
         let mut existing = ParquetReader::new(file)
             .finish()
             .map_err(|e| std::io::Error::other(e.to_string()))?;
@@ -39,9 +40,33 @@ pub fn record_metrics(
         std::fs::create_dir_all(parent)?;
     }
 
-    let file = File::create(path)?;
+    let file = File::create(&path)?;
     ParquetWriter::new(file)
         .finish(&mut df_to_write)
         .map_err(|e| std::io::Error::other(e.to_string()))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn record_and_append_metrics() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_var("METRICS_DIR", tmp.path());
+        let path = tmp.path().join("query_metrics.parquet");
+
+        record_metrics("q1", 10, 5, 100).unwrap();
+        assert!(path.exists());
+        let file = File::open(&path).unwrap();
+        let df = ParquetReader::new(file).finish().unwrap();
+        assert_eq!(df.height(), 1);
+
+        record_metrics("q2", 20, 6, 200).unwrap();
+        let file2 = File::open(&path).unwrap();
+        let df2 = ParquetReader::new(file2).finish().unwrap();
+        assert_eq!(df2.height(), 2);
+        std::env::remove_var("METRICS_DIR");
+    }
 }
