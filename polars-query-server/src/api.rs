@@ -44,6 +44,7 @@ pub fn app(state: AppState) -> Router {
 }
 
 /// Start the HTTP server on `127.0.0.1:3000`.
+#[cfg(not(tarpaulin))]
 pub async fn start_server() {
     let scheduler = Scheduler::new();
     let app = app(AppState { scheduler });
