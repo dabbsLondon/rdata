@@ -120,4 +120,39 @@ mod tests {
         let q = "df = df.foo()";
         assert!(parse_query(q).is_err());
     }
+
+    #[test]
+    fn parse_select_and_sort() {
+        let q = r#"
+            df = pl.read_parquet("data.parquet")
+            df = df.select(["name", "age"])
+            df = df.sort("age")
+        "#;
+        let plan = parse_query(q).unwrap();
+        assert_eq!(
+            plan,
+            vec![
+                QueryPlan::ReadParquet("data.parquet".into()),
+                QueryPlan::Select(vec!["name".into(), "age".into()]),
+                QueryPlan::Sort("age".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_groupby_with_agg() {
+        let q = r#"
+            df = pl.read_parquet("d.parquet")
+            df = df.groupby("city").agg(pl.col("age").max())
+        "#;
+        let plan = parse_query(q).unwrap();
+        assert_eq!(
+            plan,
+            vec![
+                QueryPlan::ReadParquet("d.parquet".into()),
+                QueryPlan::GroupBy("city".into()),
+                QueryPlan::Agg("pl.col(\"age\").max()".into()),
+            ]
+        );
+    }
 }

@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn large_dataframe_as_file() {
-        let data: Vec<i32> = (0..1_000_000).collect();
+        let data: Vec<i32> = (0..5_000_000).collect();
         let df = df!["val" => &data].unwrap();
         let out = prepare_output(2, &df).unwrap();
         assert!(out.bytes.is_none());

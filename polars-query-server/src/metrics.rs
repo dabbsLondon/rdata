@@ -45,3 +45,29 @@ pub fn record_metrics(
         .map_err(|e| std::io::Error::other(e.to_string()))?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn record_and_append_metrics() {
+        let tmp = tempfile::tempdir().unwrap();
+        let orig = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&tmp).unwrap();
+        let path = Path::new("metrics/query_metrics.parquet");
+
+        record_metrics("q1", 10, 5, 100).unwrap();
+        assert!(path.exists());
+        let file = File::open(path).unwrap();
+        let df = ParquetReader::new(file).finish().unwrap();
+        assert_eq!(df.height(), 1);
+
+        record_metrics("q2", 20, 6, 200).unwrap();
+        let file2 = File::open(path).unwrap();
+        let df2 = ParquetReader::new(file2).finish().unwrap();
+        assert_eq!(df2.height(), 2);
+        std::env::set_current_dir(orig).unwrap();
+    }
+}
