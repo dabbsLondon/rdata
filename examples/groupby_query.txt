@@ -1,0 +1,3 @@
+df = pl.read_parquet('polars-query-server/data/sample_0.parquet')
+df = df.filter(pl.col('age') > 30)
+df = df.groupby('city').agg(pl.col('balance').mean())
