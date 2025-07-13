@@ -1,7 +1,6 @@
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use hyper;
-use tower::util::ServiceExt as _;
 use tower::ServiceExt;
 
 use polars::prelude::ParquetWriter;
