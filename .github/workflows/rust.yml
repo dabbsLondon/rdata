@@ -23,7 +23,7 @@ jobs:
           grep "line coverage" coverage.log | tee coverage_summary.txt
           cat coverage_summary.txt >> $GITHUB_STEP_SUMMARY
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-log
           path: coverage.log
