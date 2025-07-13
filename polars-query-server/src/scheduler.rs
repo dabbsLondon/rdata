@@ -188,4 +188,36 @@ mod tests {
         assert!(res.bytes.is_some() || res.path.is_some());
         assert!(res.cost > 0);
     }
+
+    #[tokio::test]
+    async fn estimate_cost_counts_steps() {
+        let plan = vec![
+            QueryPlan::ReadParquet("a.parquet".into()),
+            QueryPlan::Filter("pl.col(\"val\") > 1".into()),
+        ];
+        assert_eq!(Scheduler::estimate_cost(&plan), 20);
+    }
+
+    #[tokio::test]
+    async fn spawn_job_records_metrics() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&tmpdir).unwrap();
+
+        let (complete_tx, mut complete_rx) = mpsc::channel(1);
+        let active = Arc::new(AtomicUsize::new(0));
+        let (resp_tx, resp_rx) = oneshot::channel();
+
+        let mut df = df!["v" => [1]].unwrap();
+        let parquet = NamedTempFile::new().unwrap();
+        ParquetWriter::new(File::create(parquet.path()).unwrap())
+            .finish(&mut df)
+            .unwrap();
+        let query = format!("df = pl.read_parquet(\"{}\")", parquet.path().display());
+        let job = Job { id: 1, query, resp: resp_tx, cost: 10 };
+        spawn_job(job, complete_tx, active.clone());
+        complete_rx.recv().await.unwrap();
+        let res = resp_rx.await.unwrap();
+        assert!(res.bytes.is_some() || res.path.is_some());
+        assert!(std::path::Path::new("metrics/query_metrics.parquet").exists());
+    }
 }

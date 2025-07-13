@@ -129,4 +129,26 @@ mod tests {
         let out = execute_plan(&q).unwrap();
         assert_eq!(out.height(), 1);
     }
+
+    #[test]
+    fn parse_filter_numeric_and_string() {
+        let expr = parse_filter("pl.col(\"val\") >= 2").unwrap();
+        let df = df!["val" => [1,2,3]].unwrap();
+        let out = df.lazy().filter(expr).collect().unwrap();
+        assert_eq!(out.column("val").unwrap().i32().unwrap().get(0), Some(2));
+
+        let expr2 = parse_filter("pl.col(\"name\") == \"b\"").unwrap();
+        let df2 = df!["name" => ["a","b"]].unwrap();
+        let out2 = df2.lazy().filter(expr2).collect().unwrap();
+        assert_eq!(out2.height(), 1);
+    }
+
+    #[test]
+    fn parse_agg_mean() {
+        let expr = parse_agg("pl.col(\"val\").mean()").unwrap().alias("avg");
+        let df = df!["val" => [1,2,3]].unwrap();
+        let out = df.lazy().select([expr]).collect().unwrap();
+        let v = out.column("avg").unwrap().f64().unwrap().get(0).unwrap();
+        assert!( (v - 2.0).abs() < 1e-6 );
+    }
 }
