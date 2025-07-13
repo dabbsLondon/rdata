@@ -52,7 +52,7 @@ mod tests {
 
     #[test]
     fn small_dataframe_inline() {
-        let mut df = df!["val" => [1, 2, 3]].unwrap();
+        let df = df!["val" => [1, 2, 3]].unwrap();
         let out = prepare_output(1, &df).unwrap();
         assert!(out.bytes.is_some());
         assert!(out.path.is_none());
