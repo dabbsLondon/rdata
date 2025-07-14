@@ -17,3 +17,6 @@ async fn main() {
 
     api::start_server().await;
 }
+
+#[cfg(tarpaulin)]
+fn main() {}

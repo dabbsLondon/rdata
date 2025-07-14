@@ -59,8 +59,8 @@ pub async fn start_server() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use polars::prelude::*;
     use polars::prelude::ParquetWriter;
+    use polars::prelude::*;
     use serial_test::serial;
     use std::fs::File;
     use tempfile::NamedTempFile;
@@ -76,7 +76,9 @@ mod tests {
             .finish(&mut df)
             .unwrap();
         let query = format!("df = pl.read_parquet(\"{}\")", parquet.path().display());
-        let state = Arc::new(AppState { scheduler: Scheduler::new() });
+        let state = Arc::new(AppState {
+            scheduler: Scheduler::new(),
+        });
         let resp = run_query(State(state), query).await.into_response();
         let bytes = hyper::body::to_bytes(resp.into_body()).await.unwrap();
         let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
@@ -95,11 +97,26 @@ mod tests {
             .finish(&mut df)
             .unwrap();
         let query = format!("df = pl.read_parquet(\"{}\")", parquet.path().display());
-        let state = Arc::new(AppState { scheduler: Scheduler::new() });
+        let state = Arc::new(AppState {
+            scheduler: Scheduler::new(),
+        });
         let resp = run_query(State(state), query).await.into_response();
         let bytes = hyper::body::to_bytes(resp.into_body()).await.unwrap();
         let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert!(v.get("output").unwrap().as_str().unwrap().len() > 0);
         std::env::remove_var("METRICS_DIR");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn run_query_handles_bad_query() {
+        let state = Arc::new(AppState {
+            scheduler: Scheduler::new(),
+        });
+        let resp = run_query(State(state), "bad".into()).await.into_response();
+        let bytes = hyper::body::to_bytes(resp.into_body()).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(v.get("status").unwrap(), "running");
+        assert!(v.get("output").is_none() || v.get("output").unwrap().is_null());
     }
 }

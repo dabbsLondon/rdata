@@ -155,4 +155,30 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn parse_query_skip_empty_lines() {
+        let q = "\n  df = pl.read_parquet(\"d.parquet\")\n";
+        let plan = parse_query(q).unwrap();
+        assert_eq!(plan, vec![QueryPlan::ReadParquet("d.parquet".into())]);
+    }
+
+    #[test]
+    fn parse_query_invalid_groupby() {
+        let q = "df = df.groupby(\"city\")"; // missing agg
+        assert!(parse_query(q).is_err());
+    }
+
+    #[test]
+    fn parse_query_top_level_agg() {
+        let q = "df = pl.read_parquet(\"d.parquet\")\ndf = df.agg(pl.col(\"a\").sum())";
+        let plan = parse_query(q).unwrap();
+        assert_eq!(
+            plan,
+            vec![
+                QueryPlan::ReadParquet("d.parquet".into()),
+                QueryPlan::Agg("pl.col(\"a\").sum()".into()),
+            ]
+        );
+    }
 }
