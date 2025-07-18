@@ -85,4 +85,15 @@ mod tests {
 
         std::env::set_current_dir(current).unwrap();
     }
+
+    #[test]
+    #[serial]
+    fn record_metrics_handles_corrupt_file() {
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("METRICS_DIR", dir.path());
+        let path = dir.path().join("query_metrics.parquet");
+        std::fs::write(&path, b"not parquet").unwrap();
+        assert!(record_metrics("q", 1, 1, 1).is_err());
+        std::env::remove_var("METRICS_DIR");
+    }
 }

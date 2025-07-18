@@ -192,6 +192,36 @@ mod tests {
     }
 
     #[test]
+    fn execute_select_and_sort() {
+        let mut df = df!["name" => ["a","b"], "age" => [20,10]].unwrap();
+        let file = NamedTempFile::new().unwrap();
+        ParquetWriter::new(File::create(file.path()).unwrap())
+            .finish(&mut df)
+            .unwrap();
+        let q = format!(
+            "df = pl.read_parquet(\"{}\")\ndf = df.select([\"age\",\"name\"])\ndf = df.sort(\"age\")",
+            file.path().display()
+        );
+        let out = execute_plan(&q).unwrap();
+        assert_eq!(out.column("age").unwrap().i32().unwrap().get(0), Some(10));
+    }
+
+    #[test]
+    fn execute_top_level_agg() {
+        let mut df = df!["val" => [1,2]].unwrap();
+        let file = NamedTempFile::new().unwrap();
+        ParquetWriter::new(File::create(file.path()).unwrap())
+            .finish(&mut df)
+            .unwrap();
+        let q = format!(
+            "df = pl.read_parquet(\"{}\")\ndf = df.agg(pl.col(\"val\").sum())",
+            file.path().display()
+        );
+        let out = execute_plan(&q).unwrap();
+        assert_eq!(out.height(), 2);
+    }
+
+    #[test]
     fn parse_agg_mean() {
         let expr = parse_agg("pl.col(\"val\").mean()").unwrap().alias("avg");
         let df = df!["val" => [1,2,3]].unwrap();

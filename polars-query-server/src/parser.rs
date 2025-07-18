@@ -60,7 +60,7 @@ pub fn parse_query(query: &str) -> Result<Vec<QueryPlan>, String> {
 
                 let remaining = rest.1.trim();
                 if remaining.is_empty() {
-                    continue;
+                    return Err("missing agg after groupby".into());
                 }
                 if let Some(arg) = remaining.strip_prefix(".agg(") {
                     if let Some(arg) = arg.strip_suffix(')') {
