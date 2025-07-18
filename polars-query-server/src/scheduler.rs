@@ -246,4 +246,29 @@ mod tests {
         let res = resp_rx.await.unwrap();
         assert!(res.bytes.is_none() && res.path.is_none());
     }
+
+    #[tokio::test]
+    #[serial]
+    async fn scheduler_processes_queue() {
+        let sched = Scheduler::new();
+        let mut df = df!["v" => [1]].unwrap();
+        let file = NamedTempFile::new().unwrap();
+        ParquetWriter::new(File::create(file.path()).unwrap())
+            .finish(&mut df)
+            .unwrap();
+        let query = format!("df = pl.read_parquet(\"{}\")", file.path().display());
+        let mut receivers = Vec::new();
+        for _ in 0..5 {
+            let (_id, _status, rx) = sched.enqueue(query.clone()).await;
+            receivers.push(rx);
+        }
+        let mut completed = 0;
+        for rx in receivers {
+            let res = rx.await.unwrap();
+            if res.bytes.is_some() || res.path.is_some() {
+                completed += 1;
+            }
+        }
+        assert_eq!(completed, 5);
+    }
 }

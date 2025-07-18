@@ -96,4 +96,14 @@ mod tests {
         assert!(record_metrics("q", 1, 1, 1).is_err());
         std::env::remove_var("METRICS_DIR");
     }
+
+    #[test]
+    #[serial]
+    fn record_metrics_invalid_dir() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::env::set_var("METRICS_DIR", file.path());
+        // metrics dir points to a file so create_dir_all should fail
+        assert!(record_metrics("q", 1, 1, 1).is_err());
+        std::env::remove_var("METRICS_DIR");
+    }
 }

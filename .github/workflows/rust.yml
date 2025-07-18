@@ -22,7 +22,7 @@ jobs:
         run: cargo install cargo-tarpaulin
       - name: Coverage
         run: |
-          cargo tarpaulin --workspace --timeout 120 --out Json --output-dir . > coverage.log
+          cargo tarpaulin --timeout 120 --out Json --output-dir . --lib > coverage.log
           jq -r '.files[] | "\(.path | join("/")) \(.covered) \(.coverable)"' tarpaulin-report.json > coverage_raw.txt
           echo "| File | Coverage |" >> $GITHUB_STEP_SUMMARY
           echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
