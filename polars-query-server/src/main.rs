@@ -5,6 +5,7 @@ mod parser;
 mod scheduler;
 mod utils;
 
+#[cfg(not(tarpaulin))]
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -16,3 +17,6 @@ async fn main() {
 
     api::start_server().await;
 }
+
+#[cfg(tarpaulin)]
+fn main() {}

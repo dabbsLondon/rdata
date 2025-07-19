@@ -60,7 +60,7 @@ pub fn parse_query(query: &str) -> Result<Vec<QueryPlan>, String> {
 
                 let remaining = rest.1.trim();
                 if remaining.is_empty() {
-                    continue;
+                    return Err("missing agg after groupby".into());
                 }
                 if let Some(arg) = remaining.strip_prefix(".agg(") {
                     if let Some(arg) = arg.strip_suffix(')') {
@@ -119,5 +119,66 @@ mod tests {
     fn reject_invalid_operation() {
         let q = "df = df.foo()";
         assert!(parse_query(q).is_err());
+    }
+
+    #[test]
+    fn parse_select_and_sort() {
+        let q = r#"
+            df = pl.read_parquet("data.parquet")
+            df = df.select(["name", "age"])
+            df = df.sort("age")
+        "#;
+        let plan = parse_query(q).unwrap();
+        assert_eq!(
+            plan,
+            vec![
+                QueryPlan::ReadParquet("data.parquet".into()),
+                QueryPlan::Select(vec!["name".into(), "age".into()]),
+                QueryPlan::Sort("age".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_groupby_with_agg() {
+        let q = r#"
+            df = pl.read_parquet("d.parquet")
+            df = df.groupby("city").agg(pl.col("age").max())
+        "#;
+        let plan = parse_query(q).unwrap();
+        assert_eq!(
+            plan,
+            vec![
+                QueryPlan::ReadParquet("d.parquet".into()),
+                QueryPlan::GroupBy("city".into()),
+                QueryPlan::Agg("pl.col(\"age\").max()".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_query_skip_empty_lines() {
+        let q = "\n  df = pl.read_parquet(\"d.parquet\")\n";
+        let plan = parse_query(q).unwrap();
+        assert_eq!(plan, vec![QueryPlan::ReadParquet("d.parquet".into())]);
+    }
+
+    #[test]
+    fn parse_query_invalid_groupby() {
+        let q = "df = df.groupby(\"city\")"; // missing agg
+        assert!(parse_query(q).is_err());
+    }
+
+    #[test]
+    fn parse_query_top_level_agg() {
+        let q = "df = pl.read_parquet(\"d.parquet\")\ndf = df.agg(pl.col(\"a\").sum())";
+        let plan = parse_query(q).unwrap();
+        assert_eq!(
+            plan,
+            vec![
+                QueryPlan::ReadParquet("d.parquet".into()),
+                QueryPlan::Agg("pl.col(\"a\").sum()".into()),
+            ]
+        );
     }
 }

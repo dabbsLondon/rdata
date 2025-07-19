@@ -22,9 +22,18 @@ jobs:
         run: cargo install cargo-tarpaulin
       - name: Coverage
         run: |
-          cargo tarpaulin --workspace --timeout 120 --out Xml > coverage.log
-          grep "line coverage" coverage.log | tee coverage_summary.txt
-          cat coverage_summary.txt >> $GITHUB_STEP_SUMMARY
+          cargo tarpaulin --timeout 120 --out Json --output-dir . --lib > coverage.log
+          jq -r '.files[] | "\(.path[-1]) \(.covered) \(.coverable)"' tarpaulin-report.json > coverage_raw.txt
+          echo "| File | Coverage |" >> $GITHUB_STEP_SUMMARY
+          echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+          awk '{ pct=($3==0)?0:($2/$3)*100; printf "| %s | %.2f%% |\n", $1, pct }' coverage_raw.txt >> $GITHUB_STEP_SUMMARY
+          total=$(awk '{cov+=$2; tot+=$3} END { if(tot==0) print 0; else printf "%.2f", (cov/tot)*100 }' coverage_raw.txt)
+          echo "| **Total** | ${total}% |" >> $GITHUB_STEP_SUMMARY
+      - name: Build Docker image
+        run: |
+          docker build -t polars-query-server:latest .
+          ID=$(docker images --no-trunc --quiet polars-query-server:latest)
+          echo "| Docker Image | $ID |" >> $GITHUB_STEP_SUMMARY
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:

@@ -49,6 +49,8 @@ pub fn prepare_output(id: u64, df: &DataFrame) -> io::Result<PreparedOutput> {
 mod tests {
     use super::*;
     use std::fs;
+    use polars::prelude::IpcReader;
+    use tempfile;
 
     #[test]
     fn small_dataframe_inline() {
@@ -68,5 +70,22 @@ mod tests {
         let path = out.path.unwrap();
         assert!(fs::metadata(&path).is_ok());
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn compress_and_decompress_roundtrip() {
+        let df = df!["val" => [1,2]].unwrap();
+        let bytes = super::compress_df(&df).unwrap();
+        let decoded = zstd::decode_all(std::io::Cursor::new(bytes)).unwrap();
+        let read = IpcReader::new(std::io::Cursor::new(decoded)).finish().unwrap();
+        assert_eq!(read.height(), 2);
+    }
+
+    #[test]
+    fn save_df_creates_file() {
+        let df = df!["v" => [1]].unwrap();
+        let file = tempfile::NamedTempFile::new().unwrap();
+        super::save_df(file.path().to_str().unwrap(), &df).unwrap();
+        assert!(fs::metadata(file.path()).is_ok());
     }
 }

@@ -44,6 +44,7 @@ pub fn app(state: AppState) -> Router {
 }
 
 /// Start the HTTP server on `127.0.0.1:3000`.
+#[cfg(not(tarpaulin))]
 pub async fn start_server() {
     let scheduler = Scheduler::new();
     let app = app(AppState { scheduler });
@@ -53,4 +54,93 @@ pub async fn start_server() {
         .serve(app.into_make_service())
         .await
         .unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use polars::prelude::ParquetWriter;
+    use polars::prelude::*;
+    use serial_test::serial;
+    use std::fs::File;
+    use tempfile::NamedTempFile;
+
+    #[tokio::test]
+    #[serial]
+    async fn run_query_returns_job_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_var("METRICS_DIR", tmp.path());
+        let mut df = df!["val" => [1]].unwrap();
+        let parquet = NamedTempFile::new().unwrap();
+        ParquetWriter::new(File::create(parquet.path()).unwrap())
+            .finish(&mut df)
+            .unwrap();
+        let query = format!("df = pl.read_parquet(\"{}\")", parquet.path().display());
+        let state = Arc::new(AppState {
+            scheduler: Scheduler::new(),
+        });
+        let resp = run_query(State(state), query).await.into_response();
+        let bytes = hyper::body::to_bytes(resp.into_body()).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(v.get("job_id").is_some());
+        std::env::remove_var("METRICS_DIR");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn run_query_returns_base64_output() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_var("METRICS_DIR", tmp.path());
+        let mut df = df!["val" => [1]].unwrap();
+        let parquet = NamedTempFile::new().unwrap();
+        ParquetWriter::new(File::create(parquet.path()).unwrap())
+            .finish(&mut df)
+            .unwrap();
+        let query = format!("df = pl.read_parquet(\"{}\")", parquet.path().display());
+        let state = Arc::new(AppState {
+            scheduler: Scheduler::new(),
+        });
+        let resp = run_query(State(state), query).await.into_response();
+        let bytes = hyper::body::to_bytes(resp.into_body()).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(v.get("output").unwrap().as_str().unwrap().len() > 0);
+        std::env::remove_var("METRICS_DIR");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn run_query_returns_file_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_var("METRICS_DIR", tmp.path());
+        let data: Vec<i32> = (0..1_000_000).collect();
+        let mut df = df!["val" => &data].unwrap();
+        let parquet = NamedTempFile::new().unwrap();
+        ParquetWriter::new(File::create(parquet.path()).unwrap())
+            .finish(&mut df)
+            .unwrap();
+        let query = format!("df = pl.read_parquet(\"{}\")", parquet.path().display());
+        let state = Arc::new(AppState {
+            scheduler: Scheduler::new(),
+        });
+        let resp = run_query(State(state), query).await.into_response();
+        let bytes = hyper::body::to_bytes(resp.into_body()).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let path = v.get("output").unwrap().as_str().unwrap();
+        assert!(std::path::Path::new(path).exists());
+        std::fs::remove_file(path).unwrap();
+        std::env::remove_var("METRICS_DIR");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn run_query_handles_bad_query() {
+        let state = Arc::new(AppState {
+            scheduler: Scheduler::new(),
+        });
+        let resp = run_query(State(state), "bad".into()).await.into_response();
+        let bytes = hyper::body::to_bytes(resp.into_body()).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(v.get("status").unwrap(), "running");
+        assert!(v.get("output").is_none() || v.get("output").unwrap().is_null());
+    }
 }

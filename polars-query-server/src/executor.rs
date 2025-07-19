@@ -129,4 +129,104 @@ mod tests {
         let out = execute_plan(&q).unwrap();
         assert_eq!(out.height(), 1);
     }
+
+    #[test]
+    fn parse_filter_numeric_and_string() {
+        let expr = parse_filter("pl.col(\"val\") >= 2").unwrap();
+        let df = df!["val" => [1,2,3]].unwrap();
+        let out = df.lazy().filter(expr).collect().unwrap();
+        assert_eq!(out.column("val").unwrap().i32().unwrap().get(0), Some(2));
+
+        let expr2 = parse_filter("pl.col(\"name\") == \"b\"").unwrap();
+        let df2 = df!["name" => ["a","b"]].unwrap();
+        let out2 = df2.lazy().filter(expr2).collect().unwrap();
+        assert_eq!(out2.height(), 1);
+    }
+
+    #[test]
+    fn parse_filter_invalid() {
+        assert!(parse_filter("foo").is_err());
+    }
+
+    #[test]
+    fn parse_filter_all_ops() {
+        let df = df!["val" => [1,2,3]].unwrap();
+        let ops = [">", "<", ">=", "<=", "==", "!="];
+        for op in ops {
+            let expr = format!("pl.col(\"val\") {} 2", op);
+            assert!(parse_filter(&expr).is_ok());
+        }
+        // Ensure one of them actually filters as expected
+        let expr = parse_filter("pl.col(\"val\") > 2").unwrap();
+        let out = df.lazy().filter(expr).collect().unwrap();
+        assert_eq!(out.height(), 1);
+    }
+
+    #[test]
+    fn parse_agg_invalid() {
+        assert!(parse_agg("pl.col(\"val\").foo()").is_err());
+    }
+
+    #[test]
+    fn parse_agg_all_funcs() {
+        let funcs = ["sum", "min", "max", "count", "mean"];
+        for f in funcs {
+            let expr = format!("pl.col(\"val\").{}()", f);
+            assert!(parse_agg(&expr).is_ok());
+        }
+    }
+
+    #[test]
+    fn execute_groupby_sort() {
+        let mut df = df!["city" => ["a", "b", "a"], "val" => [1, 2, 3]].unwrap();
+        let file = NamedTempFile::new().unwrap();
+        ParquetWriter::new(File::create(file.path()).unwrap())
+            .finish(&mut df)
+            .unwrap();
+        let q = format!(
+            "df = pl.read_parquet(\"{}\")\ndf = df.groupby(\"city\").agg(pl.col(\"val\").sum())\ndf = df.sort(\"city\")",
+            file.path().display()
+        );
+        let out = execute_plan(&q).unwrap();
+        assert_eq!(out.height(), 2);
+    }
+
+    #[test]
+    fn execute_select_and_sort() {
+        let mut df = df!["name" => ["a","b"], "age" => [20,10]].unwrap();
+        let file = NamedTempFile::new().unwrap();
+        ParquetWriter::new(File::create(file.path()).unwrap())
+            .finish(&mut df)
+            .unwrap();
+        let q = format!(
+            "df = pl.read_parquet(\"{}\")\ndf = df.select([\"age\",\"name\"])\ndf = df.sort(\"age\")",
+            file.path().display()
+        );
+        let out = execute_plan(&q).unwrap();
+        assert_eq!(out.column("age").unwrap().i32().unwrap().get(0), Some(10));
+    }
+
+    #[test]
+    fn execute_top_level_agg() {
+        let mut df = df!["val" => [1,2]].unwrap();
+        let file = NamedTempFile::new().unwrap();
+        ParquetWriter::new(File::create(file.path()).unwrap())
+            .finish(&mut df)
+            .unwrap();
+        let q = format!(
+            "df = pl.read_parquet(\"{}\")\ndf = df.agg(pl.col(\"val\").sum())",
+            file.path().display()
+        );
+        let out = execute_plan(&q).unwrap();
+        assert_eq!(out.height(), 2);
+    }
+
+    #[test]
+    fn parse_agg_mean() {
+        let expr = parse_agg("pl.col(\"val\").mean()").unwrap().alias("avg");
+        let df = df!["val" => [1,2,3]].unwrap();
+        let out = df.lazy().select([expr]).collect().unwrap();
+        let v = out.column("avg").unwrap().f64().unwrap().get(0).unwrap();
+        assert!( (v - 2.0).abs() < 1e-6 );
+    }
 }

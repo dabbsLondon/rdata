@@ -170,8 +170,10 @@ mod tests {
     use polars::prelude::*;
     use std::fs::File;
     use tempfile::NamedTempFile;
+    use serial_test::serial;
 
     #[tokio::test]
+    #[serial]
     async fn enqueue_and_complete() {
         let sched = Scheduler::new();
         let mut df = df!["name" => ["a"], "age" => [10]].unwrap();
@@ -187,5 +189,86 @@ mod tests {
         let res = rx.await.unwrap();
         assert!(res.bytes.is_some() || res.path.is_some());
         assert!(res.cost > 0);
+    }
+
+    #[tokio::test]
+    async fn estimate_cost_counts_steps() {
+        let plan = vec![
+            QueryPlan::ReadParquet("a.parquet".into()),
+            QueryPlan::Filter("pl.col(\"val\") > 1".into()),
+        ];
+        assert_eq!(Scheduler::estimate_cost(&plan), 20);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn spawn_job_records_metrics() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        std::env::set_var("METRICS_DIR", tmpdir.path());
+
+        let (complete_tx, mut complete_rx) = mpsc::channel(1);
+        let active = Arc::new(AtomicUsize::new(0));
+        let (resp_tx, resp_rx) = oneshot::channel();
+
+        let mut df = df!["v" => [1]].unwrap();
+        let parquet = NamedTempFile::new().unwrap();
+        ParquetWriter::new(File::create(parquet.path()).unwrap())
+            .finish(&mut df)
+            .unwrap();
+        let query = format!("df = pl.read_parquet(\"{}\")", parquet.path().display());
+        let job = Job { id: 1, query, resp: resp_tx, cost: 10 };
+        spawn_job(job, complete_tx, active.clone());
+        complete_rx.recv().await.unwrap();
+        let res = resp_rx.await.unwrap();
+        assert!(res.bytes.is_some() || res.path.is_some());
+        assert!(tmpdir.path().join("query_metrics.parquet").exists());
+        std::env::remove_var("METRICS_DIR");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn enqueue_returns_queued_when_busy() {
+        let sched = Scheduler::new();
+        sched.active.store(4, Ordering::SeqCst);
+        let (_id, status, _rx) = sched.enqueue("df = pl.DataFrame()".into()).await;
+        assert_eq!(status, "queued");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn spawn_job_handles_error() {
+        let (complete_tx, mut complete_rx) = mpsc::channel(1);
+        let active = Arc::new(AtomicUsize::new(0));
+        let (resp_tx, resp_rx) = oneshot::channel();
+        let job = Job { id: 1, query: "bad".into(), resp: resp_tx, cost: 5 };
+        spawn_job(job, complete_tx, active.clone());
+        complete_rx.recv().await.unwrap();
+        let res = resp_rx.await.unwrap();
+        assert!(res.bytes.is_none() && res.path.is_none());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn scheduler_processes_queue() {
+        let sched = Scheduler::new();
+        let mut df = df!["v" => [1]].unwrap();
+        let file = NamedTempFile::new().unwrap();
+        ParquetWriter::new(File::create(file.path()).unwrap())
+            .finish(&mut df)
+            .unwrap();
+        let query = format!("df = pl.read_parquet(\"{}\")", file.path().display());
+        let mut receivers = Vec::new();
+        for _ in 0..5 {
+            let (_id, _status, rx) = sched.enqueue(query.clone()).await;
+            receivers.push(rx);
+        }
+        let mut completed = 0;
+        for rx in receivers {
+            let res = rx.await.unwrap();
+            if res.bytes.is_some() || res.path.is_some() {
+                completed += 1;
+            }
+        }
+        assert_eq!(completed, 5);
     }
 }
